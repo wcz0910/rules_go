@@ -425,39 +425,42 @@ def _detect_sdk_platform(ctx, goroot):
 def _detect_sdk_version(ctx, goroot):
     version_file_path = goroot + "/VERSION"
     if ctx.path(version_file_path).exists:
-        # VERSION file has version prefixed by go, eg. go1.18.3
-        version = ctx.read(version_file_path)[2:]
+      
+        content = ctx.read(version_file_path)
+        content = content.replace("\n", " ").replace("\r", " ")
+        content = content.strip()
+        raw_version = content.split(" ")[0]
+        if raw_version.startswith("go"):
+            version = raw_version[2:]
+        else:
+            version = raw_version
+
         if ctx.attr.version and ctx.attr.version != version:
             fail("SDK is version %s, but version %s was expected" % (version, ctx.attr.version))
-        return version.strip()
+        return version
 
-    # The top-level VERSION file does not exist in all Go SDK distributions, e.g. those shipped by Debian or Fedora.
-    # Falling back to running "go version"
     go_binary_path = goroot + "/bin/go"
     result = ctx.execute([go_binary_path, "version"])
     if result.return_code != 0:
         fail("Could not detect SDK version: '%s version' exited with exit code %d" % (go_binary_path, result.return_code))
 
-    # go version output is of the form "go version go1.18.3 linux/amd64" or "go
-    # version devel go1.19-fd1b5904ae Tue Mar 22 21:38:10 2022 +0000
-    # linux/amd64". See the following links for how this output is generated:
-    # - https://github.com/golang/go/blob/2bdb5c57f1efcbddab536028d053798e35de6226/src/cmd/go/internal/version/version.go#L75
-    # - https://github.com/golang/go/blob/2bdb5c57f1efcbddab536028d053798e35de6226/src/cmd/dist/build.go#L333
-    #
-    # Read the third word, or the fourth word if the third word is "devel", to
-    # find the version number.
-    output_parts = result.stdout.split(" ")
+    output_clean = result.stdout.replace("\n", " ").replace("\r", " ").strip()
+    output_parts = output_clean.split(" ")
+    
     if len(output_parts) > 2 and output_parts[2].startswith("go"):
         version = output_parts[2][len("go"):]
     elif len(output_parts) > 3 and output_parts[2] == "devel" and output_parts[3].startswith("go"):
         version = output_parts[3][len("go"):]
     else:
         fail("Could not parse SDK version from '%s version' output: %s" % (go_binary_path, result.stdout))
-    if _parse_version(version) == None:
+    
+    if parse_version(version) == None:
         fail("Could not parse SDK version from '%s version' output: %s" % (go_binary_path, result.stdout))
+    
     if ctx.attr.version and ctx.attr.version != version:
         fail("SDK is version %s, but version %s was expected" % (version, ctx.attr.version))
-    return version.strip()
+    
+    return version
 
 def _parse_versions_json(data):
     """Parses version metadata returned by go.dev.
