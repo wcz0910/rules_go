@@ -454,7 +454,7 @@ def _detect_sdk_version(ctx, goroot):
     else:
         fail("Could not parse SDK version from '%s version' output: %s" % (go_binary_path, result.stdout))
     
-    if parse_version(version) == None:
+    if _parse_version(version) == None:
         fail("Could not parse SDK version from '%s version' output: %s" % (go_binary_path, result.stdout))
     
     if ctx.attr.version and ctx.attr.version != version:
